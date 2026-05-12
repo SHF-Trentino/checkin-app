@@ -1,10 +1,10 @@
 services:
 
-  giessplan:
+  checkin-app:
 
     build: .
 
-    container_name: giessplan
+    container_name: checkin-app
 
     restart: unless-stopped
 
