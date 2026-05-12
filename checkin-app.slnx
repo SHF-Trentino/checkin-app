@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="checkin-app/checkin-app.esproj">
+    <Build />
+    <Deploy />
+  </Project>
+</Solution>

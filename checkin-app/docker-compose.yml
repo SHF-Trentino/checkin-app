@@ -1,0 +1,15 @@
+services:
+
+  giessplan:
+
+    build: .
+
+    container_name: giessplan
+
+    restart: unless-stopped
+
+    ports:
+      - "3000:3000"
+
+    volumes:
+      - ./database.db:/app/database.db

@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <meta name="theme-color"
+          content="#0f172a">
+
+    <link rel="manifest"
+          href="manifest.json">
+
+    <title>Gießplan</title>
+
+    <link rel="stylesheet"
+          href="style.css">
+
+</head>
+<body>
+
+    <div class="container">
+
+        <div class="header">
+
+            <h1>🌱 Gießplan</h1>
+
+            <div id="today"
+                 class="today">
+                Heute gießt: Niemand
+            </div>
+
+            <button id="resetBtn"
+                    class="reset-btn">
+                ❌ Auschecken
+            </button>
+
+        </div>
+
+        <div class="tabs">
+
+            <button class="tab active"
+                    id="checkinTab">
+                Aktuell
+            </button>
+
+            <button class="tab"
+                    id="historyTab">
+                Historie
+            </button>
+
+        </div>
+
+        <div id="checkinView">
+
+            <div class="grid"
+                 id="grid"></div>
+
+        </div>
+
+        <div id="historyView"
+             style="display:none">
+
+            <div class="history-list"
+                 id="historyList"></div>
+
+        </div>
+
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+
+    <script>
+
+        const socket = io();
+
+        socket.on("update", () => {
+
+            loadCheckins();
+
+            loadHistory();
+        });
+
+        if ("serviceWorker" in navigator) {
+
+            navigator.serviceWorker.register(
+                "/service-worker.js"
+            );
+        }
+
+        const grid =
+            document.getElementById("grid");
+
+        const todayText =
+            document.getElementById("today");
+
+        const resetBtn =
+            document.getElementById("resetBtn");
+
+        const historyList =
+            document.getElementById("historyList");
+
+        const checkinView =
+            document.getElementById("checkinView");
+
+        const historyView =
+            document.getElementById("historyView");
+
+        const checkinTab =
+            document.getElementById("checkinTab");
+
+        const historyTab =
+            document.getElementById("historyTab");
+
+        checkinTab.onclick = () => {
+
+            checkinView.style.display = "block";
+
+            historyView.style.display = "none";
+
+            checkinTab.classList.add("active");
+
+            historyTab.classList.remove("active");
+        };
+
+        historyTab.onclick = () => {
+
+            checkinView.style.display = "none";
+
+            historyView.style.display = "block";
+
+            historyTab.classList.add("active");
+
+            checkinTab.classList.remove("active");
+
+            loadHistory();
+        };
+
+        async function loadHistory() {
+
+            const response =
+                await fetch("/api/history");
+
+            const history =
+                await response.json();
+
+            historyList.innerHTML = "";
+
+            history.forEach(entry => {
+
+                const item =
+                    document.createElement("div");
+
+                item.className = "history-item";
+
+                item.innerHTML = `
+                <div class="history-content">
+
+                    <div class="history-name">
+                        🌱 ${entry.name}
+                    </div>
+
+                    <div class="history-time">
+                        ${entry.timestamp}
+                    </div>
+
+                </div>
+
+                <button
+                    class="delete-history-btn"
+                    data-id="${entry.id}"
+                >
+                    🗑
+                </button>
+            `;
+
+                const deleteBtn =
+                    item.querySelector(
+                        ".delete-history-btn"
+                    );
+
+                deleteBtn.onclick = async () => {
+
+                    await fetch(
+                        "/api/history/" + entry.id,
+                        {
+                            method: "DELETE"
+                        }
+                    );
+
+                    loadHistory();
+                };
+
+                historyList.appendChild(item);
+            });
+        }
+
+        async function loadCheckins() {
+
+            const response =
+                await fetch("/api/checkins");
+
+            const users =
+                await response.json();
+
+            grid.innerHTML = "";
+
+            let latestUser = null;
+
+            let latestTime = 0;
+
+            users.forEach(user => {
+
+                if (user.timestamp) {
+
+                    const date =
+                        new Date(
+                            user.timestamp
+                                .replace(
+                                    /(\d+)\.(\d+)\.(\d+),/,
+                                    "$3-$2-$1"
+                                )
+                        );
+
+                    const time =
+                        date.getTime();
+
+                    if (time > latestTime) {
+
+                        latestTime = time;
+
+                        latestUser = user.name;
+                    }
+                }
+            });
+
+            if (latestUser) {
+
+                todayText.innerHTML =
+                    `🌱 Heute gießt: <strong>${latestUser}</strong>`;
+
+            } else {
+
+                todayText.innerHTML =
+                    `🌱 Heute gießt: Niemand`;
+            }
+
+            resetBtn.style.display =
+                latestUser
+                    ? "inline-block"
+                    : "none";
+
+            users.forEach(user => {
+
+                const card =
+                    document.createElement("div");
+
+                card.className = "card";
+
+                const disabled =
+                    latestUser ? true : false;
+
+                card.innerHTML = `
+
+                <div class="top">
+
+                    <div class="dot"></div>
+
+                    <div class="name">
+                        ${user.name}
+                    </div>
+
+                </div>
+
+                <div class="time">
+
+                    ${user.timestamp
+                        ? user.timestamp
+                        : "Noch kein Check-In"
+                    }
+
+                </div>
+
+                <button
+                    ${disabled ? "disabled" : ""}
+                >
+
+                    ${latestUser
+                        ? "Bereits eingecheckt"
+                        : "Heute gießen"
+                    }
+
+                </button>
+            `;
+
+                const button =
+                    card.querySelector("button");
+
+                if (!disabled) {
+
+                    button.onclick =
+                        async () => {
+
+                            button.innerText =
+                                "Speichern...";
+
+                            button.disabled = true;
+
+                            await fetch(
+                                "/api/checkin/" + user.name,
+                                {
+                                    method: "POST"
+                                }
+                            );
+
+                            loadCheckins();
+                        };
+                }
+
+                grid.appendChild(card);
+            });
+        }
+
+        resetBtn.onclick = async () => {
+
+            await fetch("/api/reset", {
+                method: "POST"
+            });
+
+            loadCheckins();
+
+            loadHistory();
+        };
+
+        loadCheckins();
+
+    </script>
+
+</body>
+</html>
